@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog,
                                QDialogButtonBox, QGridLayout, QGroupBox,
                                QFormLayout, QHBoxLayout, QLabel, QLineEdit,
                                QMenu, QMenuBar, QPushButton, QSpinBox,
-                               QTextEdit, QListWidget, QVBoxLayout, QListWidgetItem, QAbstractItemView)
+                               QTextEdit, QListWidget, QVBoxLayout, QListWidgetItem, QAbstractItemView, QFileDialog)
 
 
 class Dialog(QDialog):
@@ -16,7 +16,9 @@ class Dialog(QDialog):
     num_buttons = 4
     clock = 0
     mem_clock_count = 100
-    l1_clock_count = 5
+    l1_clock_count = 3
+    file_open = False
+    file_name = ''
     memory = {
         "0x0000": "0x0000",
         "0x0001": "0x0000",
@@ -44,8 +46,43 @@ class Dialog(QDialog):
         "100": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
         "101": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
         "110": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
-        "111": [["1"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]]
+        "111": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]]
         # set 111's valid bit to 1 for demo purposed, change back to 0 for testing
+    }
+
+    registers = {
+        "0x0000": "0x0000",
+        "0x0001": "0x0000",
+        "0x0002": "0x0000",
+        "0x0003": "0x0000",
+        "0x0004": "0x0000",
+        "0x0005": "0x0000",
+        "0x0006": "0x0000",
+        "0x0007": "0x0000",
+        "0x0008": "0x0000",
+        "0x0009": "0x0000",
+        "0x000a": "0x0000",
+        "0x000b": "0x0000",
+        "0x000c": "0x0000",
+        "0x000d": "0x0000",
+        "0x000e": "0x0000",
+        "0x000f": "0x0000",
+        "0x0010": "0x0000",
+        "0x0011": "0x0000",
+        "0x0012": "0x0000",
+        "0x0013": "0x0000",
+        "0x0014": "0x0000",
+        "0x0015": "0x0000",
+        "0x0016": "0x0000",
+        "0x0017": "0x0000",
+        "0x0018": "0x0000",
+        "0x0019": "0x0000",
+        "0x001a": "0x0000",
+        "0x001b": "0x0000",
+        "0x001c": "0x0000",
+        "0x001d": "0x0000",
+        "0x001e": "0x0000",
+        "0x001f": "0x0000"
     }
 
     def __init__(self):
@@ -99,7 +136,7 @@ class Dialog(QDialog):
 
     def create_mem(self):
         self._mem = QListWidget(self)
-        self._mem.setGeometry(50, 70, 150, 80)
+        self._mem.setMaximumWidth(130)
         # list widget items
 
         self._mem.addItem("address     value")
@@ -128,16 +165,50 @@ class Dialog(QDialog):
         self._menu_bar = QMenuBar()
 
         self._file_menu = QMenu("&File", self)
+        self._open_dialog = QFileDialog()
+        self._open_action = self._file_menu.addAction("Open")
+        self._open_action.triggered.connect(self.read_file)
         self._exit_action = self._file_menu.addAction("E&xit")
         self._menu_bar.addMenu(self._file_menu)
-
         self._exit_action.triggered.connect(self.accept)
 
+    def read_file(self):
+        if self.file_name == '':
+            self.file_name = QFileDialog.getOpenFileName(
+                self, "Open", "C://")[0]
+            self.file = open(self.file_name, 'r')
+            self.setWindowTitle(
+                "RISC-J Simulation Driver - reading " + self.file_name)
+        # fetch 32 bit instruction and send to the decoder
+        for line in self.file.readlines():
+            if (len(line) >= 32):
+                self.decode(line.strip())
+
+    def create_reg(self):
+        self._reg = QListWidget(self)
+        self._reg.addItem("register     value")
+        self._reg.setMaximumWidth(130)
+
+        for addr in self.registers:
+            item1 = QListWidgetItem("{:>6}{:>12}".format(
+                addr, self.registers[addr]))
+            # adding items to the list widget
+            self._reg.addItem(item1)
+
+        # setting vertical scroll mode
+        self._reg.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+
+        # resetting horizontal scroll mode
+        self._reg.resetHorizontalScrollMode()
+
     def create_horizontal_group_box(self):
-        self._horizontal_group_box = QGroupBox("Memory and Cache")
+        self._horizontal_group_box = QGroupBox(
+            "Registers                               Memory                              Cache")
         layout = QHBoxLayout()
         self.create_mem()
         self.create_cache()
+        self.create_reg()
+        layout.addWidget(self._reg)
         layout.addWidget(self._mem)
         layout.addWidget(self._cache)
 
@@ -170,44 +241,81 @@ class Dialog(QDialog):
         layout.addRow(QLabel("Clock:"), self.cl)
         self.addr_input = QLineEdit()
         self.val_input = QLineEdit()
+        self.val2_input = QLineEdit()
         layout.addRow(QLabel("Address:"), self.addr_input)
-        layout.addRow(QLabel("Value:"), self.val_input)
+        layout.addRow(QLabel("Value 1:"), self.val_input)
+        layout.addRow(QLabel("Value 2:"), self.val2_input)
+        self.addr_input.setMaximumWidth(100)
+        self.val_input.setMaximumWidth(100)
+        self.val2_input.setMaximumWidth(100)
+
         self.cb = QComboBox()
         self.cb.addItem("Store")
         self.cb.addItem("Load")
+        self.cb.addItem("Add")
+        self.cb.setMaximumWidth(100)
         layout.addRow(QLabel("Function:"), self.cb)
         self.fun_button = QPushButton("Go")
         self.fun_button.setCheckable(False)
-        self.fun_button.clicked.connect(self.go_clicked)
+        self.fun_button.setMaximumWidth(50)
+        self.fun_button.setStyleSheet("background: lightgreen")
+        self.fun_button.clicked.connect(self.execute)
         layout.addWidget(self.fun_button)
         self._form_group_box.setLayout(layout)
 
-    def go_clicked(self):
+    def decode(self, line):
+        self.opcode = line[-4::]
+        if self.opcode == "0000":  # R-format
+            self.rd = line[-9:-4]
+            self.function = line[-13:-9]
+            self.rs1 = line[-18:-13]
+            self.rs2 = line[-23:-18]
+            self.addr_input.setText(hex(int(self.rd, 2)))
+            self.val_input.setText(hex(int(self.rs1, 2)))
+            self.val2_input.setText(hex(int(self.rs2, 2)))
+            if self.function == "0000":  # add
+                self.cb.setCurrentText("Add")
+        elif self.opcode == "0011":  # S-format
+            self.function = line[-8:-4]
+            self.rs1 = line[-13:-8]
+            self.rs2 = line[-18:-13]
+            self.immediate = line[-32:-18]
+            self.addr_input.setText(
+                hex(int(self.rs1, 2) + int(self.immediate, 2)))
+            if self.function == "0001":  # store half
+                self.cb.setCurrentText("Store")
+                self.val_input.setText(hex(int(self.rs2, 2)))
+            elif self.function == "0100":  # load half
+                self.cb.setCurrentText("Load")
+        self.execute()
+
+    def execute(self):
         # store function
         if self.cb.currentText() == "Store":
             print("Putting ", self.val_input.text(),
                   " in address location : ", self.addr_input.text())
             self.memory[self.addr_input.text()] = str(self.val_input.text())
+            self._mem.item(int(self.addr_input.text(), 16) + 1).setText(
+                "{:>6}{:>12}".format(self._mem.item(int(self.addr_input.text(), 16) + 1).text()[0:6], self.val_input.text()))
             self.clock += self.mem_clock_count
 
         # load function
-        else:
+        elif self.cb.currentText() == "Load":
             print("Getting data from address location : ", self.addr_input.text())
             for row in list(self.cache_l1):
                 tag = str(bin(int(self.addr_input.text(), 16))[2:].zfill(32))
                 index = tag[-5:-2]
                 if row == index:
                     offset = int(tag[-2::], 2)
-                    # print('tag: ', tag)
+                    print('tag1: ', tag)
                     tag = tag[0:27]
-                    # print('tag: ', str(hex(int(tag, 2))))
+                    print('tag2: ', str(hex(int(tag, 2))))
                     block = self.cache_l1[row][offset+1]
                     # print('valid: ', self.cache_l1[row])
-                    # tag found in cache
-                    if ['0'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
+                    # tag found in cache and valid bit is 0
+                    if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
                         print('found in cache!')
                         fetched_data = block[1]
-                        self.cache_l1[row][0] = ["0"]
                         self.clock += self.l1_clock_count
                     # address in memory
                     elif self.addr_input.text() in self.memory:
@@ -218,23 +326,47 @@ class Dialog(QDialog):
                                   2:].zfill(32))
                         index = tag[-5:-2]
                         offset = int(tag[-2::], 2)
-                        # print('first tag is: ', tag)
-                        tag = tag[::27]
-                        # print('final tag is: ', str(hex(int(tag, 2))))
+                        print('first tag is: ', tag)
+                        tag = tag[0:27]
+                        print('altered tag is ', tag)
+                        print('final tag is: ', str(hex(int(tag, 2))))
                         self.cache_l1[index][offset+1][0] = hex(int(tag, 2))
                         self.cache_l1[index][offset+1][1] = fetched_data
+                        self.cache_l1[row][0] = ["1"]
+                        self._cache.item(int(index) + 1).setText("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
+                            index, str(self.cache_l1[index][0][0]), str(self.cache_l1[index][1][0]), str(
+                                self.cache_l1[index][1][1]),
+                            str(self.cache_l1[index][2][0]), str(
+                                self.cache_l1[index][2][1]),
+                            str(self.cache_l1[index][3][0]), str(
+                                self.cache_l1[index][3][1]),
+                            str(self.cache_l1[index][4][0]), str(self.cache_l1[index][4][1])))
                         self.clock += self.l1_clock_count
                     print("FETCHED DATA: ", fetched_data)
-                    self.val_input.setText(str(fetched_data))
+                    self.registers[self.addr_input.text()] = fetched_data
+                    self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
+                        "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], fetched_data))
+        elif self.cb.currentText() == "Add":
+            regAddress = str(self.addr_input.text())
+            reg1 = str(self.val_input.text())
+            reg2 = str(self.val2_input.text())
+            self.registers[int(regAddress, 16)] = hex(int(self.registers[reg1], 16) +
+                                                      int(self.registers[reg2], 16))
+            self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
+                "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], hex(int(self.registers[reg1], 16) +
+                                                                                                          int(self.registers[reg2], 16))))
+            # print('addr: ', self.registers[regAddress])
+            # print('1: ', self.registers[reg1])
+            # print('2: ', self.registers[reg2])
 
-        # update clock,  memory, and cache UI
+        # update clock, register, memory, and cache UI
         self.cl.setText(str(self.clock))
-        dummy = QListWidget()
-        dummy.hide()
-        self.main_layout.replaceWidget(self._horizontal_group_box, dummy)
-        self.create_horizontal_group_box()
-        self.main_layout.replaceWidget(dummy, self._horizontal_group_box)
-        self.main_layout.removeWidget(dummy)
+        # dummy = QListWidget()
+        # dummy.hide()
+        # self.main_layout.replaceWidget(self._horizontal_group_box, dummy)
+        # self.create_horizontal_group_box()
+        # self.main_layout.replaceWidget(dummy, self._horizontal_group_box)
+        # self.main_layout.removeWidget(dummy)
 
 
 if __name__ == '__main__':

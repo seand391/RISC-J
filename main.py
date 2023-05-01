@@ -3,6 +3,7 @@
 # RISC-J ISA Simulator
 
 import sys
+import time
 
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog,
                                QDialogButtonBox, QGridLayout, QGroupBox,
@@ -19,6 +20,8 @@ class Dialog(QDialog):
     l1_clock_count = 3
     file_open = False
     file_name = ''
+    breakLine = -1
+    pc = 0
     memory = {
         "0x0000": "0x0000",
         "0x0001": "0x0000",
@@ -118,13 +121,13 @@ class Dialog(QDialog):
             "index      v      tag         word         tag         word        tag         word        tag         word")
         for addr in self.cache_l1:
             item1 = QListWidgetItem("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
-                addr, str(self.cache_l1[addr][0][0]), str(self.cache_l1[addr][1][0]), str(
+                addr, str(self.cache_l1[addr][0][0]), toHexString(str(self.cache_l1[addr][1][0])), str(
                     self.cache_l1[addr][1][1]),
-                str(self.cache_l1[addr][2][0]), str(
+                toHexString(str(self.cache_l1[addr][2][0])), str(
                     self.cache_l1[addr][2][1]),
-                str(self.cache_l1[addr][3][0]), str(
+                toHexString(str(self.cache_l1[addr][3][0])), str(
                     self.cache_l1[addr][3][1]),
-                str(self.cache_l1[addr][4][0]), str(self.cache_l1[addr][4][1])))
+                toHexString(str(self.cache_l1[addr][4][0])), str(self.cache_l1[addr][4][1])))
             # adding items to the list widget
             self._cache.addItem(item1)
 
@@ -173,16 +176,29 @@ class Dialog(QDialog):
         self._exit_action.triggered.connect(self.accept)
 
     def read_file(self):
+        self.read_file_from(self.pc)
+
+    def read_file_from(self, lineNum):
         if self.file_name == '':
             self.file_name = QFileDialog.getOpenFileName(
-                self, "Open", "C://")[0]
-            self.file = open(self.file_name, 'r')
-            self.setWindowTitle(
-                "RISC-J Simulation Driver - reading " + self.file_name)
-        # fetch 32 bit instruction and send to the decoder
+                self, "Open", "D:\Classes\CS 535\Binary files")[0]
+        self.file = open(self.file_name, 'r')
+        self.setWindowTitle(
+            "RISC-J Simulation Driver - reading " + self.file_name)
+        self.breakLine = self.breakline_input.text()
         for line in self.file.readlines():
-            if (len(line) >= 32):
-                self.decode(line.strip())
+            if (lineNum > 0):
+                lineNum -= 1
+            else:
+                print("pc: ", self.pc, " break: ", self.breakLine)
+                if str(self.pc) == str(self.breakLine):
+                    print("breaking")
+                    self.file.close()
+                    break
+                if (len(line) >= 32):
+                    self.decode(line.strip())
+                    self.pc += 1
+        self.file.close()
 
     def create_reg(self):
         self._reg = QListWidget(self)
@@ -242,17 +258,45 @@ class Dialog(QDialog):
         self.addr_input = QLineEdit()
         self.val_input = QLineEdit()
         self.val2_input = QLineEdit()
+        self.breakline_input = QLineEdit()
         layout.addRow(QLabel("Address:"), self.addr_input)
         layout.addRow(QLabel("Value 1:"), self.val_input)
         layout.addRow(QLabel("Value 2:"), self.val2_input)
+        layout.addRow(QLabel("Break Line:"), self.breakline_input)
         self.addr_input.setMaximumWidth(100)
         self.val_input.setMaximumWidth(100)
         self.val2_input.setMaximumWidth(100)
+        self.breakline_input.setMaximumWidth(100)
 
         self.cb = QComboBox()
-        self.cb.addItem("Store")
-        self.cb.addItem("Load")
-        self.cb.addItem("Add")
+        self.cb.addItem("add")
+        self.cb.addItem("sub")
+        self.cb.addItem("mul")
+        self.cb.addItem("div")
+        self.cb.addItem("mod")
+        self.cb.addItem("xor")
+        self.cb.addItem("or")
+        self.cb.addItem("and")
+        self.cb.addItem("sll")
+        self.cb.addItem("srl")
+        self.cb.addItem("addi")
+        self.cb.addItem("xori")
+        self.cb.addItem("ori")
+        self.cb.addItem("andi")
+        self.cb.addItem("slli")
+        self.cb.addItem("srli")
+        self.cb.addItem("sb")
+        self.cb.addItem("sh")
+        self.cb.addItem("sw")
+        self.cb.addItem("lb")
+        self.cb.addItem("lh")
+        self.cb.addItem("lw")
+        self.cb.addItem("beq")
+        self.cb.addItem("bne")
+        self.cb.addItem("blt")
+        self.cb.addItem("bgt")
+        self.cb.addItem("jal")
+        self.cb.addItem("jalr")
         self.cb.setMaximumWidth(100)
         layout.addRow(QLabel("Function:"), self.cb)
         self.fun_button = QPushButton("Go")
@@ -274,7 +318,11 @@ class Dialog(QDialog):
             self.val_input.setText(hex(int(self.rs1, 2)))
             self.val2_input.setText(hex(int(self.rs2, 2)))
             if self.function == "0000":  # add
-                self.cb.setCurrentText("Add")
+                self.cb.setCurrentText("add")
+        elif self.opcode == "0001":  # I-format
+            self.rd = line[-9:-4]
+            self.function = line[-13:-9]
+            self.rs1 = line[-18:-13]
         elif self.opcode == "0011":  # S-format
             self.function = line[-8:-4]
             self.rs1 = line[-13:-8]
@@ -283,24 +331,25 @@ class Dialog(QDialog):
             self.addr_input.setText(
                 hex(int(self.rs1, 2) + int(self.immediate, 2)))
             if self.function == "0001":  # store half
-                self.cb.setCurrentText("Store")
+                self.cb.setCurrentText("sh")
                 self.val_input.setText(hex(int(self.rs2, 2)))
             elif self.function == "0100":  # load half
-                self.cb.setCurrentText("Load")
+                self.cb.setCurrentText("lh")
         self.execute()
 
     def execute(self):
         # store function
-        if self.cb.currentText() == "Store":
+        if self.cb.currentText() in ["sb", "sh", "sw"]:
             print("Putting ", self.val_input.text(),
                   " in address location : ", self.addr_input.text())
-            self.memory[self.addr_input.text()] = str(self.val_input.text())
+            self.memory[self.addr_input.text()] = toHexString(
+                str(self.val_input.text()))
             self._mem.item(int(self.addr_input.text(), 16) + 1).setText(
-                "{:>6}{:>12}".format(self._mem.item(int(self.addr_input.text(), 16) + 1).text()[0:6], self.val_input.text()))
+                "{:>6}{:>12}".format(self._mem.item(int(self.addr_input.text(), 16) + 1).text()[0:6], toHexString(self.val_input.text())))
             self.clock += self.mem_clock_count
 
         # load function
-        elif self.cb.currentText() == "Load":
+        elif self.cb.currentText() in ["lb", "lh", "lw"]:
             print("Getting data from address location : ", self.addr_input.text())
             for row in list(self.cache_l1):
                 tag = str(bin(int(self.addr_input.text(), 16))[2:].zfill(32))
@@ -320,7 +369,8 @@ class Dialog(QDialog):
                     # address in memory
                     elif self.addr_input.text() in self.memory:
                         self.clock += self.mem_clock_count
-                        fetched_data = self.memory[self.addr_input.text()]
+                        fetched_data = toHexString(
+                            self.memory[self.addr_input.text()])
                         # populate cache
                         tag = str(bin(int(self.addr_input.text(), 16))[
                                   2:].zfill(32))
@@ -334,27 +384,30 @@ class Dialog(QDialog):
                         self.cache_l1[index][offset+1][1] = fetched_data
                         self.cache_l1[row][0] = ["1"]
                         self._cache.item(int(index) + 1).setText("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
-                            index, str(self.cache_l1[index][0][0]), str(self.cache_l1[index][1][0]), str(
+                            index, str(self.cache_l1[index][0][0]), toHexString(str(self.cache_l1[index][1][0])), str(
                                 self.cache_l1[index][1][1]),
-                            str(self.cache_l1[index][2][0]), str(
+                            toHexString(str(self.cache_l1[index][2][0])), str(
                                 self.cache_l1[index][2][1]),
-                            str(self.cache_l1[index][3][0]), str(
+                            toHexString(str(self.cache_l1[index][3][0])), str(
                                 self.cache_l1[index][3][1]),
-                            str(self.cache_l1[index][4][0]), str(self.cache_l1[index][4][1])))
+                            toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
                         self.clock += self.l1_clock_count
                     print("FETCHED DATA: ", fetched_data)
                     self.registers[self.addr_input.text()] = fetched_data
                     self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
                         "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], fetched_data))
-        elif self.cb.currentText() == "Add":
+        elif self.cb.currentText() == "add":
             regAddress = str(self.addr_input.text())
             reg1 = str(self.val_input.text())
             reg2 = str(self.val2_input.text())
+            print("adding reg1: ", reg1, " and reg2: ", reg2)
             self.registers[int(regAddress, 16)] = hex(int(self.registers[reg1], 16) +
                                                       int(self.registers[reg2], 16))
             self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
-                "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], hex(int(self.registers[reg1], 16) +
-                                                                                                          int(self.registers[reg2], 16))))
+                "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], toHexString(str(hex(int(self.registers[reg1], 16) +
+                                                                                                                          int(self.registers[reg2], 16))))))
+            print("result: ", hex(int(self.registers[reg1], 16) +
+                                  int(self.registers[reg2], 16)))
             # print('addr: ', self.registers[regAddress])
             # print('1: ', self.registers[reg1])
             # print('2: ', self.registers[reg2])
@@ -367,6 +420,15 @@ class Dialog(QDialog):
         # self.create_horizontal_group_box()
         # self.main_layout.replaceWidget(dummy, self._horizontal_group_box)
         # self.main_layout.removeWidget(dummy)
+
+
+def toHexString(s):
+    s = s[2:]
+    newS = "0x"
+    for x in range(4 - len(s)):
+        newS += "0"
+    newS += s
+    return newS
 
 
 if __name__ == '__main__':

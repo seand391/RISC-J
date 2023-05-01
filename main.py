@@ -22,6 +22,9 @@ class Dialog(QDialog):
     file_name = ''
     breakLine = -1
     pc = 0
+    memOffset = 0
+    progLen = 0
+    nextAddress = "0x0000"
     memory = {
         "0x0000": "0x0000",
         "0x0001": "0x0000",
@@ -148,7 +151,6 @@ class Dialog(QDialog):
                 addr, self.memory[addr]))
             # adding items to the list widget
             self._mem.addItem(item1)
-
         # setting vertical scroll mode
         self._mem.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
 
@@ -175,30 +177,62 @@ class Dialog(QDialog):
         self._menu_bar.addMenu(self._file_menu)
         self._exit_action.triggered.connect(self.accept)
 
+    def nextAddr(self):
+        temp = self.nextAddress
+        self.nextAddress = toHexString(str(hex(int(self.nextAddress, 16) + 1)))
+        return temp
+
+    def loadToMemory(self, fileName):
+        self.file = open(fileName, 'r')
+        self.setWindowTitle(
+            "RISC-J Simulation Driver - reading " + fileName)
+        for line in self.file.readlines():
+            self.progLen += 1
+            firstHalf = hex(int(line[0:16], 2))
+            lastHalf = hex(int(line[16:32], 2))
+            print("first: ", firstHalf, " last: ", lastHalf)
+            a = self.nextAddr()
+            self.memory[a] = toHexString(
+                str(firstHalf))
+            if int(a, 16) + 1 < self._mem.count():
+                self._mem.item(int(a, 16) + 1).setText(
+                    "{:>6}{:>12}".format(self._mem.item(int(a, 16) + 1).text()[0:6], toHexString(str(firstHalf))))
+            else:
+                item = QListWidgetItem("{:>6}{:>12}".format(
+                    a, self.memory[a]))
+                self._mem.addItem(item)
+            a = self.nextAddr()
+            self.memory[a] = toHexString(
+                str(lastHalf))
+            if int(a, 16) + 1 < self._mem.count():
+                self._mem.item(int(a, 16) + 1).setText(
+                    "{:>6}{:>12}".format(self._mem.item(int(a, 16) + 1).text()[0:6], toHexString(str(lastHalf))))
+            else:
+                item = QListWidgetItem("{:>6}{:>12}".format(
+                    a, self.memory[a]))
+                self._mem.addItem(item)
+        self.file.close()
+
     def read_file(self):
         self.read_file_from(self.pc)
 
     def read_file_from(self, lineNum):
+        # first time opening
         if self.file_name == '':
             self.file_name = QFileDialog.getOpenFileName(
                 self, "Open", "D:\Classes\CS 535\Binary files")[0]
-        self.file = open(self.file_name, 'r')
-        self.setWindowTitle(
-            "RISC-J Simulation Driver - reading " + self.file_name)
+            self.loadToMemory(self.file_name)
         self.breakLine = self.breakline_input.text()
-        for line in self.file.readlines():
-            if (lineNum > 0):
-                lineNum -= 1
-            else:
-                print("pc: ", self.pc, " break: ", self.breakLine)
-                if str(self.pc) == str(self.breakLine):
-                    print("breaking")
-                    self.file.close()
-                    break
-                if (len(line) >= 32):
-                    self.decode(line.strip())
-                    self.pc += 1
-        self.file.close()
+
+        while (self.pc < self.progLen):
+            print("pc: ", self.pc, " break: ", self.breakLine)
+            if str(self.pc) == str(self.breakLine):
+                print("breaking")
+                self.file.close()
+                break
+            if (len(line) >= 32):
+                self.decode(line.strip())
+                self.pc += 1
 
     def create_reg(self):
         self._reg = QListWidget(self)
@@ -306,6 +340,9 @@ class Dialog(QDialog):
         self.fun_button.clicked.connect(self.execute)
         layout.addWidget(self.fun_button)
         self._form_group_box.setLayout(layout)
+
+    def fetch(self, addr):
+        print("fetching addr: ", addr)
 
     def decode(self, line):
         self.opcode = line[-4::]

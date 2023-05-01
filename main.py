@@ -157,83 +157,6 @@ class Dialog(QDialog):
         # resetting horizontal scroll mode
         self._mem.resetHorizontalScrollMode()
 
-        # # creating a label
-        # label = QLabel("Memory", self)
-
-        # # setting geometry to the label
-        # label.setGeometry(15, 5, 280, 80)
-
-        # # making label multi line
-        # label.setWordWrap(True)
-
-    def create_menu(self):
-        self._menu_bar = QMenuBar()
-
-        self._file_menu = QMenu("&File", self)
-        self._open_dialog = QFileDialog()
-        self._open_action = self._file_menu.addAction("Open")
-        self._open_action.triggered.connect(self.read_file)
-        self._exit_action = self._file_menu.addAction("E&xit")
-        self._menu_bar.addMenu(self._file_menu)
-        self._exit_action.triggered.connect(self.accept)
-
-    def nextAddr(self):
-        temp = self.nextAddress
-        self.nextAddress = toHexString(str(hex(int(self.nextAddress, 16) + 1)))
-        return temp
-
-    def loadToMemory(self, fileName):
-        self.file = open(fileName, 'r')
-        self.setWindowTitle(
-            "RISC-J Simulation Driver - reading " + fileName)
-        for line in self.file.readlines():
-            self.progLen += 1
-            firstHalf = hex(int(line[0:16], 2))
-            lastHalf = hex(int(line[16:32], 2))
-            print("first: ", firstHalf, " last: ", lastHalf)
-            a = self.nextAddr()
-            self.memory[a] = toHexString(
-                str(firstHalf))
-            if int(a, 16) + 1 < self._mem.count():
-                self._mem.item(int(a, 16) + 1).setText(
-                    "{:>6}{:>12}".format(self._mem.item(int(a, 16) + 1).text()[0:6], toHexString(str(firstHalf))))
-            else:
-                item = QListWidgetItem("{:>6}{:>12}".format(
-                    a, self.memory[a]))
-                self._mem.addItem(item)
-            a = self.nextAddr()
-            self.memory[a] = toHexString(
-                str(lastHalf))
-            if int(a, 16) + 1 < self._mem.count():
-                self._mem.item(int(a, 16) + 1).setText(
-                    "{:>6}{:>12}".format(self._mem.item(int(a, 16) + 1).text()[0:6], toHexString(str(lastHalf))))
-            else:
-                item = QListWidgetItem("{:>6}{:>12}".format(
-                    a, self.memory[a]))
-                self._mem.addItem(item)
-        self.file.close()
-
-    def read_file(self):
-        self.read_file_from(self.pc)
-
-    def read_file_from(self, lineNum):
-        # first time opening
-        if self.file_name == '':
-            self.file_name = QFileDialog.getOpenFileName(
-                self, "Open", "D:\Classes\CS 535\Binary files")[0]
-            self.loadToMemory(self.file_name)
-        self.breakLine = self.breakline_input.text()
-
-        while (self.pc < self.progLen):
-            print("pc: ", self.pc, " break: ", self.breakLine)
-            if str(self.pc) == str(self.breakLine):
-                print("breaking")
-                self.file.close()
-                break
-            if (len(line) >= 32):
-                self.decode(line.strip())
-                self.pc += 1
-
     def create_reg(self):
         self._reg = QListWidget(self)
         self._reg.addItem("register     value")
@@ -263,26 +186,6 @@ class Dialog(QDialog):
         layout.addWidget(self._cache)
 
         self._horizontal_group_box.setLayout(layout)
-
-    # def create_grid_group_box(self):
-    #     self._grid_group_box = QGroupBox("Grid layout")
-    #     layout = QGridLayout()
-
-    #     for i in range(Dialog.num_grid_rows):
-    #         label = QLabel(f"Line {i + 1}:")
-    #         line_edit = QLineEdit()
-    #         layout.addWidget(label, i + 1, 0)
-    #         layout.addWidget(line_edit, i + 1, 1)
-
-    #     self._small_editor = QTextEdit()
-    #     self._small_editor.setPlainText("This widget takes up about two thirds "
-    #                                     "of the grid layout.")
-
-    #     layout.addWidget(self._small_editor, 0, 2, 4, 1)
-
-    #     layout.setColumnStretch(1, 10)
-    #     layout.setColumnStretch(2, 20)
-    #     self._grid_group_box.setLayout(layout)
 
     def create_form_group_box(self):
         self._form_group_box = QGroupBox("Controls")
@@ -341,10 +244,85 @@ class Dialog(QDialog):
         layout.addWidget(self.fun_button)
         self._form_group_box.setLayout(layout)
 
-    def fetch(self, addr):
-        print("fetching addr: ", addr)
+    def create_menu(self):
+        self._menu_bar = QMenuBar()
 
-    def decode(self, line):
+        self._file_menu = QMenu("&File", self)
+        self._open_dialog = QFileDialog()
+        self._open_action = self._file_menu.addAction("Open")
+        self._open_action.triggered.connect(self.read_file)
+        self._exit_action = self._file_menu.addAction("E&xit")
+        self._menu_bar.addMenu(self._file_menu)
+        self._exit_action.triggered.connect(self.accept)
+
+    def nextAddr(self):
+        temp = self.nextAddress
+        self.nextAddress = toHexString(str(hex(int(self.nextAddress, 16) + 1)))
+        return temp
+
+    def loadToMemory(self, fileName):
+        self.file = open(fileName, 'r')
+        self.setWindowTitle(
+            "RISC-J Simulation Driver - reading " + fileName)
+        for line in self.file.readlines():
+            self.progLen += 1
+            firstHalf = hex(int(line[0:16], 2))
+            lastHalf = hex(int(line[16:32], 2))
+            print("first: ", firstHalf, " last: ", lastHalf)
+            a = self.nextAddr()
+            self.memory[a] = toHexString(
+                str(firstHalf))
+            if int(a, 16) + 1 < self._mem.count():
+                self._mem.item(int(a, 16) + 1).setText(
+                    "{:>6}{:>12}".format(self._mem.item(int(a, 16) + 1).text()[0:6], toHexString(str(firstHalf))))
+            else:
+                item = QListWidgetItem("{:>6}{:>12}".format(
+                    a, self.memory[a]))
+                self._mem.addItem(item)
+            a = self.nextAddr()
+            self.memory[a] = toHexString(
+                str(lastHalf))
+            if int(a, 16) + 1 < self._mem.count():
+                self._mem.item(int(a, 16) + 1).setText(
+                    "{:>6}{:>12}".format(self._mem.item(int(a, 16) + 1).text()[0:6], toHexString(str(lastHalf))))
+            else:
+                item = QListWidgetItem("{:>6}{:>12}".format(
+                    a, self.memory[a]))
+                self._mem.addItem(item)
+        self.file.close()
+
+    def read_file(self):
+        # first time opening
+        if self.file_name == '':
+            self.file_name = QFileDialog.getOpenFileName(
+                self, "Open", "D:\Classes\CS 535\Binary files")[0]
+            self.loadToMemory(self.file_name)
+        self.breakLine = self.breakline_input.text()
+
+        while (self.pc < self.progLen):
+            print("pc: ", self.pc, " break: ", self.breakLine)
+            if str(self.pc) == str(self.breakLine):
+                print("breaking")
+                self.file.close()
+                break
+            else:
+                self.fetch()
+
+    def fetch(self):
+        print("fetching")
+        instP1 = self.memory[toHexString(str(hex(self.pc * 2)))]
+        instP2 = self.memory[toHexString(str(hex(self.pc * 2 + 1)))]
+        self.registers[2] = instP1
+        self.registers[3] = instP2
+        self.pc += 1
+        self.decode()
+
+    def decode(self):
+        lineP1 = str(bin(int(self.registers[2], 16)))[2::].zfill(16)
+        lineP2 = str(bin(int(self.registers[3], 16)))[2::].zfill(16)
+        line = lineP1 + lineP2
+
+        print("decoding line: ", line)
         self.opcode = line[-4::]
         if self.opcode == "0000":  # R-format
             self.rd = line[-9:-4]
@@ -393,9 +371,9 @@ class Dialog(QDialog):
                 index = tag[-5:-2]
                 if row == index:
                     offset = int(tag[-2::], 2)
-                    print('tag1: ', tag)
+                    # print('tag1: ', tag)
                     tag = tag[0:27]
-                    print('tag2: ', str(hex(int(tag, 2))))
+                    # print('tag2: ', str(hex(int(tag, 2))))
                     block = self.cache_l1[row][offset+1]
                     # print('valid: ', self.cache_l1[row])
                     # tag found in cache and valid bit is 0
@@ -413,10 +391,10 @@ class Dialog(QDialog):
                                   2:].zfill(32))
                         index = tag[-5:-2]
                         offset = int(tag[-2::], 2)
-                        print('first tag is: ', tag)
+                        # print('first tag is: ', tag)
                         tag = tag[0:27]
-                        print('altered tag is ', tag)
-                        print('final tag is: ', str(hex(int(tag, 2))))
+                        # print('altered tag is ', tag)
+                        # print('final tag is: ', str(hex(int(tag, 2))))
                         self.cache_l1[index][offset+1][0] = hex(int(tag, 2))
                         self.cache_l1[index][offset+1][1] = fetched_data
                         self.cache_l1[row][0] = ["1"]
@@ -430,16 +408,18 @@ class Dialog(QDialog):
                             toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
                         self.clock += self.l1_clock_count
                     print("FETCHED DATA: ", fetched_data)
-                    self.registers[self.addr_input.text()] = fetched_data
+                    self.registers[toHexString(
+                        self.addr_input.text())] = fetched_data
                     self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
                         "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], fetched_data))
         elif self.cb.currentText() == "add":
             regAddress = str(self.addr_input.text())
-            reg1 = str(self.val_input.text())
-            reg2 = str(self.val2_input.text())
-            print("adding reg1: ", reg1, " and reg2: ", reg2)
-            self.registers[int(regAddress, 16)] = hex(int(self.registers[reg1], 16) +
-                                                      int(self.registers[reg2], 16))
+            reg1 = toHexString(str(self.val_input.text()))
+            reg2 = toHexString(str(self.val2_input.text()))
+            print("adding reg1: ", int(
+                self.registers[reg1], 16), " and reg2: ", int(self.registers[reg2], 16))
+            self.registers[toHexString(str(int(regAddress, 16)))] = hex(int(self.registers[reg1], 16) +
+                                                                        int(self.registers[reg2], 16))
             self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
                 "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], toHexString(str(hex(int(self.registers[reg1], 16) +
                                                                                                                           int(self.registers[reg2], 16))))))

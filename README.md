@@ -25,7 +25,6 @@ Conversion notes:
 
 ----->
 
-
 <p style="color: red; font-weight: bold">>>>>>  gd2md-html alert:  ERRORs: 0; WARNINGs: 0; ALERTS: 1.</p>
 <ul style="color: red; font-weight: bold"><li>See top comment block for details on ERRORs and WARNINGs. <li>In the converted Markdown or HTML, search for inline alerts that start with >>>>>  gd2md-html alert:  for specific instances that need correction.</ul>
 
@@ -33,12 +32,11 @@ Conversion notes:
 
 <p style="color: red; font-weight: bold">>>>>> PLEASE check and correct alert issues and delete this message and the inline alerts.<hr></p>
 
-
 **RISC-J**
 
 Sean Driscoll
 
-This ISA is a general purpose architecture that is largely based on the RISC-V instruction set. 
+This ISA is a general purpose architecture that is largely based on the RISC-V instruction set.
 
 The word size is 16 bits, but with 32 bit instructions.
 
@@ -54,21 +52,17 @@ I am using a 5 stage pipeline (fetch, decode, execute, memory, write back) and a
 
 Supported addressing modes:
 
-
-
-* PC relative (PC + immediate)
-* Register direct (rd = rs1 + rs2)
-* Register offset (M[rs1 + immediate])
+- PC relative (PC + immediate)
+- Register direct (rd = rs1 + rs2)
+- Register offset (M[rs1 + immediate])
 
 The instructions will be categorized into the following five formats:
 
-
-
-* **R:** arithmetic / logic (add, xor, mu)
-* **I: **immediate, loads (addi, lw)
-* **S:** store (sw, sb)
-* **C: **conditional / branch (beq, bge)
-* **J: **jump (jal, jalr)
+- **R:** arithmetic / logic (add, xor, mu)
+- **I: **immediate, loads (addi, lw)
+- **S:** store (sw, sb)
+- **C: **conditional / branch (beq, bge)
+- **J: **jump (jal, jalr)
 
 _Note: I have decided to leave out RISC-V’s U-type instructions for simplicity_
 
@@ -79,7 +73,6 @@ _And I changed some of the format letters for my super creative name :)_
 **<span style="text-decoration:underline;">General format:</span>**
 
 Field names and sizes:
-
 
 <table>
   <tr>
@@ -112,9 +105,7 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **<span style="text-decoration:underline;">Instructions:</span>**
-
 
 <table>
   <tr>
@@ -229,11 +220,9 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **I-format (Opcode: 0001)**
 
 **<span style="text-decoration:underline;">General format:</span>**
-
 
 <table>
   <tr>
@@ -262,9 +251,7 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **<span style="text-decoration:underline;">Instructions:</span>**
-
 
 <table>
   <tr>
@@ -339,11 +326,9 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **S-format (Opcode: 0011)**
 
 **<span style="text-decoration:underline;">General format:</span>**
-
 
 <table>
   <tr>
@@ -372,9 +357,7 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **<span style="text-decoration:underline;">Instructions:</span>**
-
 
 <table>
   <tr>
@@ -449,11 +432,9 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **C-format (Opcode: 0100):**
 
 **<span style="text-decoration:underline;">General format:</span>**
-
 
 <table>
   <tr>
@@ -486,9 +467,7 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **<span style="text-decoration:underline;">Instructions:</span>**
-
 
 <table>
   <tr>
@@ -543,13 +522,11 @@ Field names and sizes:
   </tr>
 </table>
 
-
 (The sign bit for C and J instructions indicates forward jump on 0, backwards jump on 1)
 
 **J-format (Opcode: 0101):**
 
 **<span style="text-decoration:underline;">General format:</span>**
-
 
 <table>
   <tr>
@@ -578,9 +555,7 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **<span style="text-decoration:underline;">Instructions:</span>**
-
 
 <table>
   <tr>
@@ -615,13 +590,11 @@ Field names and sizes:
   </tr>
 </table>
 
-
 **Registers:**
 
 **32 general purpose 16 bit integer registers**
 
 Note that these are all only convention and can be modified (empty cells are completely general purpose)
-
 
 <table>
   <tr>
@@ -818,7 +791,6 @@ Note that these are all only convention and can be modified (empty cells are com
   </tr>
 </table>
 
-
 **Assembly Syntax:**
 
 All 32 registers can be accessed using the form rN, where N is the number (0-31) corresponding to the register. For example: to access the value in the last register, 0x001f, we would use ‘r31’
@@ -855,21 +827,15 @@ The assembler allows comments to be made with a preceding ‘#’
 
 For example, the following line will be ignored by the assembler and will not translate to binary:
 
-# This is a cool loop
+`# This is a cool loop`
 
 **Simulator**
 
 This is what the GUI will look like when you launch the RISC-J simulator for the first time:
 
+![simulator](simulator.JPG)
 
-
-<p id="gdcalert1" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image1.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert2">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-![alt_text](images/image1.png "image_tooltip")
-
-
-The ‘File’ dropdown menu allows you to open a binary file from your computer to run through the simulator. 
+The ‘File’ dropdown menu allows you to open a binary file from your computer to run through the simulator.
 
 **Controls:**
 
@@ -885,7 +851,7 @@ When you click the green ‘Manual Instruction’ button with the above combinat
 
 <span style="text-decoration:underline;">Break Line</span>: Specify a line for the program to break at and allow you to view and/or manipulate the current state of all data._ Note_: you should enter a break line before opening a binary file from the file menu if you want to break before the program executes to completion. Then once you reach that break point, you can specify a new one. If you want to run to completion after a break, simply open the file again (you don’t need to navigate the file system again, clicking open will automatically resume the program from where you left off)
 
-<span style="text-decoration:underline;">Step 1 Buttons</span>: The ‘Step 1 Instruction’ button will break the program at the start of the next instruction (could be multiple clock cycles due to pipeline latency). The ‘Step 1 Clock Cycle’ button will break the program at the start of the next clock cycle. 
+<span style="text-decoration:underline;">Step 1 Buttons</span>: The ‘Step 1 Instruction’ button will break the program at the start of the next instruction (could be multiple clock cycles due to pipeline latency). The ‘Step 1 Clock Cycle’ button will break the program at the start of the next clock cycle.
 
 **Data:**
 

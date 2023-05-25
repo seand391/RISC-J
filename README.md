@@ -1,6 +1,6 @@
-### **RISC-J**
+# **RISC-J**
 
-Sean Driscoll
+By Sean Driscoll
 
 This ISA is a general purpose architecture that is largely based on the RISC-V instruction set.
 

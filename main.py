@@ -24,6 +24,15 @@ class Dialog(QDialog):
     pc = 0
     memOffset = 0
     progLen = 0
+    fLockedUntil = 0
+    dLockedUntil = 0
+    eLockedUntil = 0
+    mLockedUntil = 0
+    wLockedUntil = 0
+    newInstr = False
+    newDecode = False
+    pipeEnabled = True
+    cacheEnabled = True
     nextAddress = "0x0000"
     memory = {
         "0x0000": "0x0000",
@@ -112,12 +121,13 @@ class Dialog(QDialog):
         # self.main_layout.addWidget(self._grid_group_box)
         self.main_layout.addWidget(button_box)
         self.setLayout(self.main_layout)
-        self.resize(1200, 500)
+        self.resize(1920, 1015)
         self.setWindowTitle("RISC-J Simulation Driver")
 
     def create_cache(self):
         self._cache = QListWidget(self)
         self._cache.setGeometry(50, 70, 150, 80)
+
         # list widget items
 
         self._cache.addItem(
@@ -196,6 +206,13 @@ class Dialog(QDialog):
         self.val_input = QLineEdit()
         self.val2_input = QLineEdit()
         self.breakline_input = QLineEdit()
+        self.cachePipe = QComboBox()
+        self.cachePipe.addItem("Both on")
+        self.cachePipe.addItem("Cache only")
+        self.cachePipe.addItem("Pipe only")
+        self.cachePipe.addItem("Both off")
+        self.cachePipe.setMaximumWidth(100)
+        layout.addRow(QLabel("Cache / Pipe:"), self.cachePipe)
         layout.addRow(QLabel("Address:"), self.addr_input)
         layout.addRow(QLabel("Value 1:"), self.val_input)
         layout.addRow(QLabel("Value 2:"), self.val2_input)
@@ -236,13 +253,29 @@ class Dialog(QDialog):
         self.cb.addItem("jalr")
         self.cb.setMaximumWidth(100)
         layout.addRow(QLabel("Function:"), self.cb)
-        self.fun_button = QPushButton("Go")
+        self.fun_button = QPushButton("Manual Instruction")
         self.fun_button.setCheckable(False)
-        self.fun_button.setMaximumWidth(50)
+        self.fun_button.setMaximumWidth(120)
         self.fun_button.setStyleSheet("background: lightgreen")
         self.fun_button.clicked.connect(self.execute)
         layout.addWidget(self.fun_button)
+        self.step_button = QPushButton("Step 1 Instruction")
+        self.step_button.setCheckable(False)
+        self.step_button.setMaximumWidth(120)
+        self.step_button.setStyleSheet("background: yellow")
+        self.step_button.clicked.connect(self.read_file_1)
+        layout.addWidget(self.step_button)
+        self.step_button = QPushButton("Step 1 Clock Cycle")
+        self.step_button.setCheckable(False)
+        self.step_button.setMaximumWidth(120)
+        self.step_button.setStyleSheet("background: lightblue")
+        self.step_button.clicked.connect(self.cycle1)
+        layout.addWidget(self.step_button)
         self._form_group_box.setLayout(layout)
+
+    def cycle1(self):
+        self.breakline_input.setText("1 cycle")
+        self.read_file()
 
     def create_menu(self):
         self._menu_bar = QMenuBar()
@@ -266,9 +299,10 @@ class Dialog(QDialog):
             "RISC-J Simulation Driver - reading " + fileName)
         for line in self.file.readlines():
             self.progLen += 1
+            self.memOffset += 2
             firstHalf = hex(int(line[0:16], 2))
             lastHalf = hex(int(line[16:32], 2))
-            print("first: ", firstHalf, " last: ", lastHalf)
+            # print("first: ", firstHalf, " last: ", lastHalf)
             a = self.nextAddr()
             self.memory[a] = toHexString(
                 str(firstHalf))
@@ -299,148 +333,524 @@ class Dialog(QDialog):
             self.loadToMemory(self.file_name)
         self.breakLine = self.breakline_input.text()
 
-        while (self.pc < self.progLen):
-            print("pc: ", self.pc, " break: ", self.breakLine)
+        while (self.pc < self.progLen) or self.eLockedUntil > self.clock - 1:
+            # print("pc: ", self.pc, " break: ", self.breakLine)
             if str(self.pc) == str(self.breakLine):
-                print("breaking")
+                # print("breaking")
                 self.file.close()
                 break
             else:
                 self.fetch()
+                if self.breakLine == "1 cycle":
+                    # print("breaking")
+                    self.file.close()
+                    break
+
+    def read_file_1(self):
+        self.breakline_input.setText(str(self.pc + 1))
+        self.read_file()
 
     def fetch(self):
-        print("fetching")
-        instP1 = self.memory[toHexString(str(hex(self.pc * 2)))]
-        instP2 = self.memory[toHexString(str(hex(self.pc * 2 + 1)))]
-        self.registers[2] = instP1
-        self.registers[3] = instP2
-        self.pc += 1
+        if self.clock == self.fLockedUntil and self.pc < self.progLen and (self.cachePipe.currentText() in ["Both on", "Pipe only"] or self.clock > self.eLockedUntil):
+            # print("fetching")
+            if self.cachePipe.currentText() in ["Both on", "Cache only"]:
+                for row in list(self.cache_l1):
+                    tag = str(bin(int(toHexString((str(hex(self.pc * 2)))), 16))
+                              [2:].zfill(32))
+                    index = tag[-5:-2]
+                    if row == index:
+                        offset = int(tag[-2::], 2)
+                        # print('tag1: ', tag)
+                        tag = tag[0:27]
+                        # print('tag2: ', str(hex(int(tag, 2))))
+                        block = self.cache_l1[row][offset+1]
+                        # print('valid: ', self.cache_l1[row])
+                        # tag found in cache and valid bit is 0
+                        if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
+                            fetched_data = block[1]
+                        # address in memory
+                        elif toHexString((str(hex(self.pc * 2)))) in self.memory:
+                            fetched_data = toHexString(
+                                self.memory[toHexString((str(hex(self.pc * 2))))])
+                            # populate cache
+                            tag = str(bin(int(toHexString((str(hex(self.pc * 2)))), 16))[
+                                2:].zfill(32))
+                            index = tag[-5:-2]
+                            # print("index: ", index)
+                            offset = int(tag[-2::], 2)
+                            # print('first tag is: ', tag)
+                            tag = tag[0:27]
+                            # print('altered tag is ', tag)
+                            # print('final tag is: ', str(hex(int(tag, 2))))
+                            self.cache_l1[index][offset +
+                                                 1][0] = hex(int(tag, 2))
+                            self.cache_l1[index][offset+1][1] = fetched_data
+                            self.cache_l1[row][0] = ["1"]
+                            self._cache.item(int(index, 2) + 1).setText("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
+                                index, str(self.cache_l1[index][0][0]), toHexString(str(self.cache_l1[index][1][0])), str(
+                                    self.cache_l1[index][1][1]),
+                                toHexString(str(self.cache_l1[index][2][0])), str(
+                                    self.cache_l1[index][2][1]),
+                                toHexString(str(self.cache_l1[index][3][0])), str(
+                                    self.cache_l1[index][3][1]),
+                                toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
+                        instP1 = fetched_data
+
+                    for row in list(self.cache_l1):
+                        tag = str(bin(int(toHexString((str(hex(self.pc * 2)))), 16))
+                                  [2:].zfill(32))
+                        index = tag[-5:-2]
+                        if row == index:
+                            offset = int(tag[-2::], 2)
+                            # print('tag1: ', tag)
+                            tag = tag[0:27]
+                            # print('tag2: ', str(hex(int(tag, 2))))
+                            block = self.cache_l1[row][offset+1]
+                            # print('valid: ', self.cache_l1[row])
+                            # tag found in cache and valid bit is 0
+                            if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
+                                fetched_data = block[1]
+                            # address in memory
+                            elif toHexString((str(hex(self.pc * 2 + 1)))) in self.memory:
+                                fetched_data = toHexString(
+                                    self.memory[toHexString((str(hex(self.pc * 2 + 1))))])
+                                # populate cache
+                                tag = str(bin(int(toHexString((str(hex(self.pc * 2 + 1)))), 16))[
+                                    2:].zfill(32))
+                                index = tag[-5:-2]
+                                # print("index: ", index)
+                                offset = int(tag[-2::], 2)
+                                # print('first tag is: ', tag)
+                                tag = tag[0:27]
+                                # print('altered tag is ', tag)
+                                # print('final tag is: ', str(hex(int(tag, 2))))
+                                self.cache_l1[index][offset +
+                                                     1][0] = hex(int(tag, 2))
+                                self.cache_l1[index][offset +
+                                                     1][1] = fetched_data
+                                self.cache_l1[row][0] = ["1"]
+                                self._cache.item(int(index, 2) + 1).setText("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
+                                    index, str(self.cache_l1[index][0][0]), toHexString(str(self.cache_l1[index][1][0])), str(
+                                        self.cache_l1[index][1][1]),
+                                    toHexString(str(self.cache_l1[index][2][0])), str(
+                                        self.cache_l1[index][2][1]),
+                                    toHexString(str(self.cache_l1[index][3][0])), str(
+                                        self.cache_l1[index][3][1]),
+                                    toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
+                            instP2 = fetched_data
+
+            instP1 = self.memory[toHexString((str(hex(self.pc * 2))))]
+            instP2 = self.memory[toHexString(str(hex(self.pc * 2 + 1)))]
+            self.registers["0x0002"] = instP1
+            self.registers["0x0003"] = instP2
+            self.pc += 1
+            self.registers["0x0001"] = toHexString(str(self.pc))
+            self._reg.item(2).setText(
+                "{:>6}{:>12}".format(self._reg.item(2).text()[
+                    0:6], toHexString(str(self.pc))))
+            self._reg.item(3).setText(
+                "{:>6}{:>12}".format(self._reg.item(3).text()[
+                    0:6], instP1))
+            self._reg.item(4).setText(
+                "{:>6}{:>12}".format(self._reg.item(4).text()[
+                    0:6], instP2))
+            self.newInstr = True
+        elif self.clock > self.fLockedUntil:
+            inCache = False
+            if self.cachePipe.currentText() in ["Both on", "Cache only"]:
+                # check if instructions are already in cache
+                for row in list(self.cache_l1):
+                    tag = str(bin(int(toHexString((str(hex(self.pc * 2)))), 16))
+                              [2:].zfill(32))
+                    index = tag[-5:-2]
+                    if row == index:
+                        offset = int(tag[-2::], 2)
+                        # print('tag1: ', tag)
+                        tag = tag[0:27]
+                        # print('tag2: ', str(hex(int(tag, 2))))
+                        block = self.cache_l1[row][offset+1]
+                        # print('valid: ', self.cache_l1[row])
+                        # tag found in cache and valid bit is 0
+                        if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
+                            # print('found in cache!')
+                            inCache = True
+            if inCache == False:
+                self.fLockedUntil = self.clock + self.mem_clock_count
+            else:
+                self.fLockedUntil = self.clock + self.l1_clock_count
+        # else:
+            # print("fetch waiting")
         self.decode()
 
     def decode(self):
-        lineP1 = str(bin(int(self.registers[2], 16)))[2::].zfill(16)
-        lineP2 = str(bin(int(self.registers[3], 16)))[2::].zfill(16)
-        line = lineP1 + lineP2
+        if self.clock > self.eLockedUntil and self.newInstr == True:
+            self.newInstr = False
+            self.newDecode = True
+            lineP1 = str(bin(int(self.registers["0x0002"], 16)))[2::].zfill(16)
+            lineP2 = str(bin(int(self.registers["0x0003"], 16)))[2::].zfill(16)
+            line = lineP1 + lineP2
 
-        print("decoding line: ", line)
-        self.opcode = line[-4::]
-        if self.opcode == "0000":  # R-format
-            self.rd = line[-9:-4]
-            self.function = line[-13:-9]
-            self.rs1 = line[-18:-13]
-            self.rs2 = line[-23:-18]
-            self.addr_input.setText(hex(int(self.rd, 2)))
-            self.val_input.setText(hex(int(self.rs1, 2)))
-            self.val2_input.setText(hex(int(self.rs2, 2)))
-            if self.function == "0000":  # add
-                self.cb.setCurrentText("add")
-        elif self.opcode == "0001":  # I-format
-            self.rd = line[-9:-4]
-            self.function = line[-13:-9]
-            self.rs1 = line[-18:-13]
-        elif self.opcode == "0011":  # S-format
-            self.function = line[-8:-4]
-            self.rs1 = line[-13:-8]
-            self.rs2 = line[-18:-13]
-            self.immediate = line[-32:-18]
-            self.addr_input.setText(
-                hex(int(self.rs1, 2) + int(self.immediate, 2)))
-            if self.function == "0001":  # store half
-                self.cb.setCurrentText("sh")
-                self.val_input.setText(hex(int(self.rs2, 2)))
-            elif self.function == "0100":  # load half
-                self.cb.setCurrentText("lh")
+            # print("decoding line: ", line)
+            self.opcode = line[-4::]
+            if self.opcode == "0000":  # R-format
+                self.rd = line[-9:-4]
+                self.function = line[-13:-9]
+                # print(self.rd)
+                self.rs1 = line[-18:-13]
+                self.rs2 = line[-23:-18]
+                self.addr_input.setText(hex(int(self.rd, 2)))
+                self.val_input.setText(hex(int(self.rs1, 2)))
+                self.val2_input.setText(hex(int(self.rs2, 2)))
+                if self.function == "0000":  # add
+                    self.cb.setCurrentText("add")
+                elif self.function == "0001":
+                    self.cb.setCurrentText("sub")
+                elif self.function == "0010":
+                    self.cb.setCurrentText("mul")
+                elif self.function == "0011":
+                    self.cb.setCurrentText("div")
+                elif self.function == "0100":
+                    self.cb.setCurrentText("mod")
+                elif self.function == "0101":
+                    self.cb.setCurrentText("xor")
+                elif self.function == "0110":
+                    self.cb.setCurrentText("or")
+                elif self.function == "0111":
+                    self.cb.setCurrentText("and")
+                elif self.function == "1000":
+                    self.cb.setCurrentText("sll")
+                elif self.function == "1001":
+                    self.cb.setCurrentText("srl")
+            elif self.opcode == "0001":  # I-format
+                self.rd = line[-9:-4]
+                self.function = line[-13:-9]
+                self.rs1 = line[-18:-13]
+                self.immediate = line[-32:-18]
+                self.addr_input.setText(hex(int(self.rd, 2)))
+                self.val_input.setText(hex(int(self.rs1, 2)))
+                self.val2_input.setText('')
+                if self.function == "0000":
+                    self.cb.setCurrentText("addi")
+                elif self.function == "0001":
+                    self.cb.setCurrentText("xori")
+                elif self.function == "0010":
+                    self.cb.setCurrentText("ori")
+                elif self.function == "0011":
+                    self.cb.setCurrentText("andi")
+                elif self.function == "0100":
+                    self.cb.setCurrentText("slli")
+                elif self.function == "0101":
+                    self.cb.setCurrentText("srli")
+            elif self.opcode == "0011":  # S-format
+                # print("S FORMAT")
+                self.function = line[-8:-4]
+                self.rs1 = line[-13:-8]
+                self.rs2 = line[-18:-13]
+                self.immediate = line[-32:-18]
+                self.addr_input.setText(
+                    hex(int(self.rs1, 2) + int(self.immediate, 2)))
+                if self.function == "0001":  # store half
+                    self.cb.setCurrentText("sh")
+                    # print("store")
+                    self.val_input.setText(hex(int(self.rs2, 2)))
+                elif self.function == "0100":  # load half
+                    self.cb.setCurrentText("lh")
+                    # print("load")
+                    self.val_input.setText(hex(int(self.rs2, 2)))
+            elif self.opcode == "0100":  # C-format
+                self.function = line[-8:-4]
+                if self.function == "0000":
+                    self.cb.setCurrentText("beq")
+                elif self.function == "0001":
+                    self.cb.setCurrentText("bne")
+                elif self.function == "0010":
+                    self.cb.setCurrentText("blt")
+                elif self.function == "0011":
+                    self.cb.setCurrentText("bge")
+                self.rs1 = line[-13:-8]
+                self.rs2 = line[-18:-13]
+                # print("rs1: ", self.rs1)
+                # print("rs2: ", self.rs2)
+                self.immediate = line[-31:-18]
+                self.sign = line[-32]
+            elif self.opcode == "0101":  # J-format
+                self.function = line[-4]
+                if self.function == "1":
+                    self.cb.setCurrentText("jalr")
+                else:
+                    self.cb.setCurrentText("jal")
+                self.rd = line[-10:-5]
+                self.immediate = line[-31:-10]
+                self.sign = line[-32]
+        # else:
+            # print("decode waiting")
         self.execute()
 
     def execute(self):
-        # store function
-        if self.cb.currentText() in ["sb", "sh", "sw"]:
-            print("Putting ", self.val_input.text(),
-                  " in address location : ", self.addr_input.text())
-            self.memory[self.addr_input.text()] = toHexString(
-                str(self.val_input.text()))
-            self._mem.item(int(self.addr_input.text(), 16) + 1).setText(
-                "{:>6}{:>12}".format(self._mem.item(int(self.addr_input.text(), 16) + 1).text()[0:6], toHexString(self.val_input.text())))
-            self.clock += self.mem_clock_count
+        if self.clock == self.eLockedUntil and self.clock != 0:
+            # print("EXECUTING ", self.cb.currentText())
+            # print(self.memory)
+            # store function
+            if self.cb.currentText() in ["sb", "sh", "sw"]:
+                # print("Putting value from register ", self.val_input.text(),
+                #      " in address location : ", self.addr_input.text(), " offset by ", toHexString(str(hex(self.memOffset))))
+                self.memory[toHexString(str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))] = toHexString(
+                    str(self.registers[toHexString(self.val_input.text())]))
+                if self._mem.item(int(self.addr_input.text(), 16) + 1 + self.memOffset) != None:
+                    self._mem.item(int(self.addr_input.text(), 16) + 1 + self.memOffset).setText(
+                        "{:>6}{:>12}".format(self._mem.item(int(self.addr_input.text(), 16) + 1 + self.memOffset).text()[0:6], toHexString(self.registers[toHexString(self.val_input.text())])))
+                else:
+                    row = toHexString(
+                        str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + 1 + self.memOffset)))
+                    item1 = QListWidgetItem("{:>6}{:>12}".format(
+                        row, self.memory[toHexString(str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))]))
 
-        # load function
-        elif self.cb.currentText() in ["lb", "lh", "lw"]:
-            print("Getting data from address location : ", self.addr_input.text())
-            for row in list(self.cache_l1):
-                tag = str(bin(int(self.addr_input.text(), 16))[2:].zfill(32))
-                index = tag[-5:-2]
-                if row == index:
-                    offset = int(tag[-2::], 2)
-                    # print('tag1: ', tag)
-                    tag = tag[0:27]
-                    # print('tag2: ', str(hex(int(tag, 2))))
-                    block = self.cache_l1[row][offset+1]
-                    # print('valid: ', self.cache_l1[row])
-                    # tag found in cache and valid bit is 0
-                    if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
-                        print('found in cache!')
-                        fetched_data = block[1]
-                        self.clock += self.l1_clock_count
-                    # address in memory
-                    elif self.addr_input.text() in self.memory:
-                        self.clock += self.mem_clock_count
-                        fetched_data = toHexString(
-                            self.memory[self.addr_input.text()])
-                        # populate cache
-                        tag = str(bin(int(self.addr_input.text(), 16))[
-                                  2:].zfill(32))
-                        index = tag[-5:-2]
+                    self._mem.addItem(item1)
+
+            # load function
+            elif self.cb.currentText() in ["lb", "lh", "lw"]:
+                # print("Getting data from address location : ",
+                #      self.addr_input.text())
+                for row in list(self.cache_l1):
+                    tag = str(bin(int(self.addr_input.text(), 16))
+                              [2:].zfill(32))
+                    index = tag[-5:-2]
+                    if row == index:
                         offset = int(tag[-2::], 2)
-                        # print('first tag is: ', tag)
+                        # print('tag1: ', tag)
                         tag = tag[0:27]
-                        # print('altered tag is ', tag)
-                        # print('final tag is: ', str(hex(int(tag, 2))))
-                        self.cache_l1[index][offset+1][0] = hex(int(tag, 2))
-                        self.cache_l1[index][offset+1][1] = fetched_data
-                        self.cache_l1[row][0] = ["1"]
-                        self._cache.item(int(index) + 1).setText("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
-                            index, str(self.cache_l1[index][0][0]), toHexString(str(self.cache_l1[index][1][0])), str(
-                                self.cache_l1[index][1][1]),
-                            toHexString(str(self.cache_l1[index][2][0])), str(
-                                self.cache_l1[index][2][1]),
-                            toHexString(str(self.cache_l1[index][3][0])), str(
-                                self.cache_l1[index][3][1]),
-                            toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
-                        self.clock += self.l1_clock_count
-                    print("FETCHED DATA: ", fetched_data)
-                    self.registers[toHexString(
-                        self.addr_input.text())] = fetched_data
-                    self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
-                        "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], fetched_data))
-        elif self.cb.currentText() == "add":
-            regAddress = str(self.addr_input.text())
-            reg1 = toHexString(str(self.val_input.text()))
-            reg2 = toHexString(str(self.val2_input.text()))
-            print("adding reg1: ", int(
-                self.registers[reg1], 16), " and reg2: ", int(self.registers[reg2], 16))
-            self.registers[toHexString(str(int(regAddress, 16)))] = hex(int(self.registers[reg1], 16) +
-                                                                        int(self.registers[reg2], 16))
-            self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
-                "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], toHexString(str(hex(int(self.registers[reg1], 16) +
-                                                                                                                          int(self.registers[reg2], 16))))))
-            print("result: ", hex(int(self.registers[reg1], 16) +
-                                  int(self.registers[reg2], 16)))
-            # print('addr: ', self.registers[regAddress])
-            # print('1: ', self.registers[reg1])
-            # print('2: ', self.registers[reg2])
+                        # print('tag2: ', str(hex(int(tag, 2))))
+                        block = self.cache_l1[row][offset+1]
+                        fetched_data = "0"
+                        # print('valid: ', self.cache_l1[row])
+                        # tag found in cache and valid bit is 0
+                        # print("LOADING: ", self.memory[toHexString(
+                        #    str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))], '\n',
+                        #    int(self.addr_input.text(),
+                        #        16), '\n', self.memOffset, '\n', self.val_input.text()
+                        # )
+                        if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000" and self.cachePipe.currentText() in ["Both on", "Cache only"]:
+                            # print('found in cache!')
+                            fetched_data = block[1]
+                        # address in memory
 
-        # update clock, register, memory, and cache UI
+                        elif toHexString(str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset))) in self.memory:
+                            fetched_data = toHexString(
+                                self.memory[toHexString(
+                                    str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))])
+                            # print(fetched_data)
+                            if self.cachePipe.currentText() in ["Both on", "Cache only"]:
+                                # populate cache
+                                tag = str(bin(int(self.addr_input.text(), 16))[
+                                    2:].zfill(32))
+                                index = tag[-5:-2]
+                                # print("index: ", index)
+                                offset = int(tag[-2::], 2)
+                                # print('first tag is: ', tag)
+                                tag = tag[0:27]
+                                # print('altered tag is ', tag)
+                                # print('final tag is: ', str(hex(int(tag, 2))))
+                                self.cache_l1[index][offset +
+                                                     1][0] = hex(int(tag, 2))
+                                self.cache_l1[index][offset +
+                                                     1][1] = fetched_data
+                                self.cache_l1[row][0] = ["1"]
+                                self._cache.item(int(index, 2) + 1).setText("{:>4}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
+                                    index, str(self.cache_l1[index][0][0]), toHexString(str(self.cache_l1[index][1][0])), str(
+                                        self.cache_l1[index][1][1]),
+                                    toHexString(str(self.cache_l1[index][2][0])), str(
+                                        self.cache_l1[index][2][1]),
+                                    toHexString(str(self.cache_l1[index][3][0])), str(
+                                        self.cache_l1[index][3][1]),
+                                    toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
+                        # print("FETCHED DATA: ", fetched_data)
+                        self.registers[toHexString(str(
+                            self.val_input.text()))] = fetched_data
+                        # print("reg index: ", int(
+                        #    self.addr_input.text(), 16) + 1)
+                        self._reg.item(int(self.val_input.text(), 16) + 1).setText(
+                            "{:>6}{:>12}".format(self._reg.item(int(self.val_input.text(), 16) + 1).text()[0:6], fetched_data))
+            elif self.cb.currentText() in ["add", "sub", "mul", "div", "mod", "xor", "or", "and", "sll", "srl"]:
+                regAddress = toHexString(str(self.addr_input.text()))
+                reg1 = toHexString(str(self.val_input.text()))
+                reg2 = toHexString(str(self.val2_input.text()))
+                # print("R instruction: ", self.cb.currentText(), " on ", reg1, ": ",
+                #      self.registers[reg1], " and ", reg2, ": ", self.registers[reg2], " to destination: ", regAddress)
+                if self.cb.currentText() == "add":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) + int(self.registers[reg2], 16))))
+                elif self.cb.currentText() == "sub":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) - int(self.registers[reg2], 16))))
+                elif self.cb.currentText() == "mul":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) * int(self.registers[reg2], 16))))
+                elif self.cb.currentText() == "div":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) / int(self.registers[reg2], 16))))
+                elif self.cb.currentText() == "xor":
+                    res = toHexString(
+                        str(hex(bool(int(self.registers[reg1], 16)) ^ bool(int(self.registers[reg2], 16)))))
+                elif self.cb.currentText() == "mod":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) % int(self.registers[reg2], 16))))
+                elif self.cb.currentText() == "or":
+                    res = toHexString(
+                        str(hex(bool(int(self.registers[reg1], 16)) or bool(int(self.registers[reg2], 16)))))
+                elif self.cb.currentText() == "and":
+                    res = toHexString(
+                        str(hex(bool(int(self.registers[reg1], 16)) and bool(int(self.registers[reg2], 16)))))
+                elif self.cb.currentText() == "sll":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) << int(self.registers[reg2], 16))))
+                elif self.cb.currentText() == "srl":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) >> int(self.registers[reg2], 16))))
+                self.registers[regAddress] = res
+                self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
+                    "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], res))
+                # print("result: ", res)
+                # print('addr: ', self.registers[regAddress])
+                # print('1: ', self.registers[reg1])
+                # print('2: ', self.registers[reg2])
+            elif self.cb.currentText() in ["addi", "xori", "ori", "andi", "slli", "srli"]:
+                # print("I format")
+                regAddress = toHexString(str(self.addr_input.text()))
+                reg1 = toHexString(str(self.val_input.text()))
+                # print("input text: ", self.val_input.text())
+                # print("value of reg1: ", reg1)
+                # print("regAddress: ", regAddress)
+                # print("operand: ", self.registers[reg1])
+                if self.cb.currentText() == "addi":
+                    # print("register ", int(self.registers[reg1], 16))
+                    # print(" plus immediate: ", int(self.immediate, 2))
+                    # if int(self.immediate, 2) == 1:
+                    # print("YES")
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) + int(self.immediate, 2))))
+                elif self.cb.currentText() == "xori":
+                    res = toHexString(
+                        str(hex(bool(self.registers[reg1], 16) ^ bool(self.immediate, 2))))
+                elif self.cb.currentText() == "ori":
+                    res = toHexString(
+                        str(hex(bool(self.registers[reg1], 16) or bool(self.immediate, 2))))
+                elif self.cb.currentText() == "andi":
+                    res = toHexString(
+                        str(hex(bool(self.registers[reg1], 16) and bool(self.immediate, 2))))
+                elif self.cb.currentText() == "ori":
+                    res = toHexString(
+                        str(hex(bool(self.registers[reg1], 16) or bool(self.immediate, 2))))
+                elif self.cb.currentText() == "slli":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) << int(self.immediate, 2))))
+                elif self.cb.currentText() == "srli":
+                    res = toHexString(
+                        str(hex(int(self.registers[reg1], 16) >> int(self.immediate, 2))))
+                self.registers[regAddress] = res
+                self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
+                    "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], res))
+                # print("addi result: ", res)
+
+            elif self.cb.currentText() in ["beq", "bne", "blt", "bge"]:
+                # print("C format")
+
+                # flush pipeline
+                self.newInstr = False
+                self.newDecode = False
+                self.fLockedUntil = 0
+
+                self.sign = int(self.sign)
+                firstOP = self.registers[toHexString(
+                    str(hex(int(self.rs1, 2))))]
+                secondOP = self.registers[toHexString(
+                    str(hex(int(self.rs2, 2))))]
+                if self.cb.currentText() == "beq":
+                    if firstOP == secondOP:
+                        if self.sign == 0:
+                            self.pc += int(self.immediate, 2)
+                        else:
+                            self.pc -= int(self.immediate, 2)
+                elif self.cb.currentText() == "bne":
+                    if firstOP != secondOP:
+                        if self.sign == 0:
+                            self.pc += int(self.immediate, 2)
+                        else:
+                            self.pc -= int(self.immediate, 2)
+                if self.cb.currentText() == "blt":
+                    # print("first: ", firstOP, "< second?: ", secondOP)
+                    if firstOP < secondOP:
+                        self.fLockedUntil = 0
+                        self.dLockedUntil = 0
+                        self.eLockedUntil = 0
+                        self.mLockedUntil = 0
+                        self.wLockedUntil = 0
+                        self.newInstr = False
+                        self.newDecode = False
+                        # print("less")
+                        if self.sign == 0:
+                            self.pc += int(self.immediate, 2)
+                            # print("forward jump to ", self.pc)
+                        else:
+                            self.pc -= int(self.immediate, 2)
+                            # print("jump back to ", self.pc)
+                if self.cb.currentText() == "bge":
+                    if firstOP >= secondOP:
+                        if self.sign == 0:
+                            # print("increment PC")
+                            self.pc += int(self.immediate, 2)
+                        else:
+                            self.pc -= int(self.immediate, 2)
+                self.registers["0x0001"] = toHexString(str(self.pc))
+                self._reg.item(2).setText(
+                    "{:>6}{:>12}".format(self._reg.item(2).text()[
+                        0:6], toHexString(str(self.pc))))
+            elif self.cb.currentText() in ["jalr", "jal"]:
+                # print("J format")
+                if self.sign == "0":  # branch to future instruction
+                    self.pc += int(self.immediate, 2)
+                else:  # branch to earlier instruction
+                    self.pc -= int(self.immediate, 2)
+                self.registers["0x0001"] = toHexString(str(self.pc))
+                self._reg.item(2).setText(
+                    "{:>6}{:>12}".format(self._reg.item(2).text()[
+                        0:6], toHexString(str(self.pc))))
+                # TODO figure out a return address register and store value there, based on self.function
+
+        elif self.clock >= self.eLockedUntil and self.newDecode == True:
+
+            self.newDecode = False
+            numMemAccesses = 0
+            numCacheAccesses = 0
+            if self.cb.currentText() in ["lb", "lh", "lw"]:
+                for row in list(self.cache_l1):
+                    tag = str(bin(int(self.addr_input.text(), 16))
+                              [2:].zfill(32))
+                    index = tag[-5:-2]
+                    if row == index:
+                        offset = int(tag[-2::], 2)
+                        tag = tag[0:27]
+                        block = self.cache_l1[row][offset+1]
+                        if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
+                            numCacheAccesses += 1
+                        else:
+                            numMemAccesses += 1
+            elif self.cb.currentText() in ["sb", "sh", "sw"]:
+                numMemAccesses += 1
+
+            self.eLockedUntil = self.clock + 2 +\
+                (numMemAccesses * self.mem_clock_count) + \
+                (numCacheAccesses * self.l1_clock_count)
+            # print("Setting Execute Delay to ", self.eLockedUntil)
+        # else:
+            # print("execute waiting")
+        self.clock += 1
         self.cl.setText(str(self.clock))
-        # dummy = QListWidget()
-        # dummy.hide()
-        # self.main_layout.replaceWidget(self._horizontal_group_box, dummy)
-        # self.create_horizontal_group_box()
-        # self.main_layout.replaceWidget(dummy, self._horizontal_group_box)
-        # self.main_layout.removeWidget(dummy)
+        # print(self.clock)
 
 
 def toHexString(s):
-    s = s[2:]
+    if s[0:2] == "0x":
+        s = s[2:]
     newS = "0x"
     for x in range(4 - len(s)):
         newS += "0"

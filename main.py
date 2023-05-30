@@ -1,5 +1,4 @@
 # Sean Driscoll
-# CS 535
 # RISC-J ISA Simulator
 
 import sys
@@ -52,8 +51,8 @@ class Dialog(QDialog):
         "0x000e": "0x0000",
         "0x000f": "0x0000"
     }
-
-    cache_l1 = {  # index, valid bit, [tag, data]x4 (rightmost 5 address bits = [4:2]  3 bits for index, [1:0]  2 bits for offset within row)
+    # index, valid bit, [tag, data]x4 (rightmost 5 address bits = [4:2]  3 bits for index, [1:0]  2 bits for offset within row)
+    cache_l1 = {
         "000": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
         "001": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
         "010": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
@@ -62,7 +61,6 @@ class Dialog(QDialog):
         "101": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
         "110": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]],
         "111": [["0"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"], ["0x0000", "0x0000"]]
-        # set 111's valid bit to 1 for demo purposed, change back to 0 for testing
     }
 
     registers = {
@@ -105,7 +103,6 @@ class Dialog(QDialog):
 
         self.create_menu()
         self.create_horizontal_group_box()
-        # self.create_grid_group_box()
         self.create_form_group_box()
 
         button_box = QDialogButtonBox(
@@ -118,7 +115,6 @@ class Dialog(QDialog):
         self.main_layout.setMenuBar(self._menu_bar)
         self.main_layout.addWidget(self._form_group_box)
         self.main_layout.addWidget(self._horizontal_group_box)
-        # self.main_layout.addWidget(self._grid_group_box)
         self.main_layout.addWidget(button_box)
         self.setLayout(self.main_layout)
         self.resize(1920, 1015)
@@ -127,9 +123,6 @@ class Dialog(QDialog):
     def create_cache(self):
         self._cache = QListWidget(self)
         self._cache.setGeometry(50, 70, 150, 80)
-
-        # list widget items
-
         self._cache.addItem(
             "index      v      tag         word         tag         word        tag         word        tag         word")
         for addr in self.cache_l1:
@@ -141,47 +134,30 @@ class Dialog(QDialog):
                 toHexString(str(self.cache_l1[addr][3][0])), str(
                     self.cache_l1[addr][3][1]),
                 toHexString(str(self.cache_l1[addr][4][0])), str(self.cache_l1[addr][4][1])))
-            # adding items to the list widget
             self._cache.addItem(item1)
-
-        # setting vertical scroll mode
         self._cache.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-
-        # resetting horizontal scroll mode
         self._cache.resetHorizontalScrollMode()
 
     def create_mem(self):
         self._mem = QListWidget(self)
         self._mem.setMaximumWidth(130)
-        # list widget items
-
         self._mem.addItem("address     value")
         for addr in self.memory:
             item1 = QListWidgetItem("{:>6}{:>12}".format(
                 addr, self.memory[addr]))
-            # adding items to the list widget
             self._mem.addItem(item1)
-        # setting vertical scroll mode
         self._mem.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-
-        # resetting horizontal scroll mode
         self._mem.resetHorizontalScrollMode()
 
     def create_reg(self):
         self._reg = QListWidget(self)
         self._reg.addItem("register     value")
         self._reg.setMaximumWidth(130)
-
         for addr in self.registers:
             item1 = QListWidgetItem("{:>6}{:>12}".format(
                 addr, self.registers[addr]))
-            # adding items to the list widget
             self._reg.addItem(item1)
-
-        # setting vertical scroll mode
         self._reg.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-
-        # resetting horizontal scroll mode
         self._reg.resetHorizontalScrollMode()
 
     def create_horizontal_group_box(self):
@@ -302,7 +278,6 @@ class Dialog(QDialog):
             self.memOffset += 2
             firstHalf = hex(int(line[0:16], 2))
             lastHalf = hex(int(line[16:32], 2))
-            # print("first: ", firstHalf, " last: ", lastHalf)
             a = self.nextAddr()
             self.memory[a] = toHexString(
                 str(firstHalf))
@@ -334,15 +309,12 @@ class Dialog(QDialog):
         self.breakLine = self.breakline_input.text()
 
         while (self.pc < self.progLen) or self.eLockedUntil > self.clock - 1:
-            # print("pc: ", self.pc, " break: ", self.breakLine)
             if str(self.pc) == str(self.breakLine):
-                # print("breaking")
                 self.file.close()
                 break
             else:
                 self.fetch()
                 if self.breakLine == "1 cycle":
-                    # print("breaking")
                     self.file.close()
                     break
 
@@ -352,7 +324,6 @@ class Dialog(QDialog):
 
     def fetch(self):
         if self.clock == self.fLockedUntil and self.pc < self.progLen and (self.cachePipe.currentText() in ["Both on", "Pipe only"] or self.clock > self.eLockedUntil):
-            # print("fetching")
             if self.cachePipe.currentText() in ["Both on", "Cache only"]:
                 for row in list(self.cache_l1):
                     tag = str(bin(int(toHexString((str(hex(self.pc * 2)))), 16))
@@ -360,11 +331,8 @@ class Dialog(QDialog):
                     index = tag[-5:-2]
                     if row == index:
                         offset = int(tag[-2::], 2)
-                        # print('tag1: ', tag)
                         tag = tag[0:27]
-                        # print('tag2: ', str(hex(int(tag, 2))))
                         block = self.cache_l1[row][offset+1]
-                        # print('valid: ', self.cache_l1[row])
                         # tag found in cache and valid bit is 0
                         if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
                             fetched_data = block[1]
@@ -376,12 +344,8 @@ class Dialog(QDialog):
                             tag = str(bin(int(toHexString((str(hex(self.pc * 2)))), 16))[
                                 2:].zfill(32))
                             index = tag[-5:-2]
-                            # print("index: ", index)
                             offset = int(tag[-2::], 2)
-                            # print('first tag is: ', tag)
                             tag = tag[0:27]
-                            # print('altered tag is ', tag)
-                            # print('final tag is: ', str(hex(int(tag, 2))))
                             self.cache_l1[index][offset +
                                                  1][0] = hex(int(tag, 2))
                             self.cache_l1[index][offset+1][1] = fetched_data
@@ -402,11 +366,8 @@ class Dialog(QDialog):
                         index = tag[-5:-2]
                         if row == index:
                             offset = int(tag[-2::], 2)
-                            # print('tag1: ', tag)
                             tag = tag[0:27]
-                            # print('tag2: ', str(hex(int(tag, 2))))
                             block = self.cache_l1[row][offset+1]
-                            # print('valid: ', self.cache_l1[row])
                             # tag found in cache and valid bit is 0
                             if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
                                 fetched_data = block[1]
@@ -418,12 +379,8 @@ class Dialog(QDialog):
                                 tag = str(bin(int(toHexString((str(hex(self.pc * 2 + 1)))), 16))[
                                     2:].zfill(32))
                                 index = tag[-5:-2]
-                                # print("index: ", index)
                                 offset = int(tag[-2::], 2)
-                                # print('first tag is: ', tag)
                                 tag = tag[0:27]
-                                # print('altered tag is ', tag)
-                                # print('final tag is: ', str(hex(int(tag, 2))))
                                 self.cache_l1[index][offset +
                                                      1][0] = hex(int(tag, 2))
                                 self.cache_l1[index][offset +
@@ -465,21 +422,16 @@ class Dialog(QDialog):
                     index = tag[-5:-2]
                     if row == index:
                         offset = int(tag[-2::], 2)
-                        # print('tag1: ', tag)
                         tag = tag[0:27]
-                        # print('tag2: ', str(hex(int(tag, 2))))
                         block = self.cache_l1[row][offset+1]
-                        # print('valid: ', self.cache_l1[row])
                         # tag found in cache and valid bit is 0
                         if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000":
-                            # print('found in cache!')
                             inCache = True
             if inCache == False:
                 self.fLockedUntil = self.clock + self.mem_clock_count
             else:
                 self.fLockedUntil = self.clock + self.l1_clock_count
         # else:
-            # print("fetch waiting")
         self.decode()
 
     def decode(self):
@@ -490,12 +442,10 @@ class Dialog(QDialog):
             lineP2 = str(bin(int(self.registers["0x0003"], 16)))[2::].zfill(16)
             line = lineP1 + lineP2
 
-            # print("decoding line: ", line)
             self.opcode = line[-4::]
             if self.opcode == "0000":  # R-format
                 self.rd = line[-9:-4]
                 self.function = line[-13:-9]
-                # print(self.rd)
                 self.rs1 = line[-18:-13]
                 self.rs2 = line[-23:-18]
                 self.addr_input.setText(hex(int(self.rd, 2)))
@@ -542,7 +492,6 @@ class Dialog(QDialog):
                 elif self.function == "0101":
                     self.cb.setCurrentText("srli")
             elif self.opcode == "0011":  # S-format
-                # print("S FORMAT")
                 self.function = line[-8:-4]
                 self.rs1 = line[-13:-8]
                 self.rs2 = line[-18:-13]
@@ -551,11 +500,9 @@ class Dialog(QDialog):
                     hex(int(self.rs1, 2) + int(self.immediate, 2)))
                 if self.function == "0001":  # store half
                     self.cb.setCurrentText("sh")
-                    # print("store")
                     self.val_input.setText(hex(int(self.rs2, 2)))
                 elif self.function == "0100":  # load half
                     self.cb.setCurrentText("lh")
-                    # print("load")
                     self.val_input.setText(hex(int(self.rs2, 2)))
             elif self.opcode == "0100":  # C-format
                 self.function = line[-8:-4]
@@ -569,8 +516,6 @@ class Dialog(QDialog):
                     self.cb.setCurrentText("bge")
                 self.rs1 = line[-13:-8]
                 self.rs2 = line[-18:-13]
-                # print("rs1: ", self.rs1)
-                # print("rs2: ", self.rs2)
                 self.immediate = line[-31:-18]
                 self.sign = line[-32]
             elif self.opcode == "0101":  # J-format
@@ -583,17 +528,12 @@ class Dialog(QDialog):
                 self.immediate = line[-31:-10]
                 self.sign = line[-32]
         # else:
-            # print("decode waiting")
         self.execute()
 
     def execute(self):
         if self.clock == self.eLockedUntil and self.clock != 0:
-            # print("EXECUTING ", self.cb.currentText())
-            # print(self.memory)
             # store function
             if self.cb.currentText() in ["sb", "sh", "sw"]:
-                # print("Putting value from register ", self.val_input.text(),
-                #      " in address location : ", self.addr_input.text(), " offset by ", toHexString(str(hex(self.memOffset))))
                 self.memory[toHexString(str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))] = toHexString(
                     str(self.registers[toHexString(self.val_input.text())]))
                 if self._mem.item(int(self.addr_input.text(), 16) + 1 + self.memOffset) != None:
@@ -609,7 +549,6 @@ class Dialog(QDialog):
 
             # load function
             elif self.cb.currentText() in ["lb", "lh", "lw"]:
-                # print("Getting data from address location : ",
                 #      self.addr_input.text())
                 for row in list(self.cache_l1):
                     tag = str(bin(int(self.addr_input.text(), 16))
@@ -617,39 +556,23 @@ class Dialog(QDialog):
                     index = tag[-5:-2]
                     if row == index:
                         offset = int(tag[-2::], 2)
-                        # print('tag1: ', tag)
                         tag = tag[0:27]
-                        # print('tag2: ', str(hex(int(tag, 2))))
                         block = self.cache_l1[row][offset+1]
                         fetched_data = "0"
-                        # print('valid: ', self.cache_l1[row])
-                        # tag found in cache and valid bit is 0
-                        # print("LOADING: ", self.memory[toHexString(
-                        #    str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))], '\n',
-                        #    int(self.addr_input.text(),
-                        #        16), '\n', self.memOffset, '\n', self.val_input.text()
-                        # )
                         if ['1'] in self.cache_l1[row] and int(block[0], 16) == int(hex(int(tag, 2)), 16) and block[1] != "0x0000" and self.cachePipe.currentText() in ["Both on", "Cache only"]:
-                            # print('found in cache!')
                             fetched_data = block[1]
                         # address in memory
-
                         elif toHexString(str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset))) in self.memory:
                             fetched_data = toHexString(
                                 self.memory[toHexString(
                                     str(hex(int(self.registers[toHexString(str(self.addr_input.text()))], 16) + self.memOffset)))])
-                            # print(fetched_data)
                             if self.cachePipe.currentText() in ["Both on", "Cache only"]:
                                 # populate cache
                                 tag = str(bin(int(self.addr_input.text(), 16))[
                                     2:].zfill(32))
                                 index = tag[-5:-2]
-                                # print("index: ", index)
                                 offset = int(tag[-2::], 2)
-                                # print('first tag is: ', tag)
                                 tag = tag[0:27]
-                                # print('altered tag is ', tag)
-                                # print('final tag is: ', str(hex(int(tag, 2))))
                                 self.cache_l1[index][offset +
                                                      1][0] = hex(int(tag, 2))
                                 self.cache_l1[index][offset +
@@ -663,19 +586,14 @@ class Dialog(QDialog):
                                     toHexString(str(self.cache_l1[index][3][0])), str(
                                         self.cache_l1[index][3][1]),
                                     toHexString(str(self.cache_l1[index][4][0])), str(self.cache_l1[index][4][1])))
-                        # print("FETCHED DATA: ", fetched_data)
                         self.registers[toHexString(str(
                             self.val_input.text()))] = fetched_data
-                        # print("reg index: ", int(
-                        #    self.addr_input.text(), 16) + 1)
                         self._reg.item(int(self.val_input.text(), 16) + 1).setText(
                             "{:>6}{:>12}".format(self._reg.item(int(self.val_input.text(), 16) + 1).text()[0:6], fetched_data))
             elif self.cb.currentText() in ["add", "sub", "mul", "div", "mod", "xor", "or", "and", "sll", "srl"]:
                 regAddress = toHexString(str(self.addr_input.text()))
                 reg1 = toHexString(str(self.val_input.text()))
                 reg2 = toHexString(str(self.val2_input.text()))
-                # print("R instruction: ", self.cb.currentText(), " on ", reg1, ": ",
-                #      self.registers[reg1], " and ", reg2, ": ", self.registers[reg2], " to destination: ", regAddress)
                 if self.cb.currentText() == "add":
                     res = toHexString(
                         str(hex(int(self.registers[reg1], 16) + int(self.registers[reg2], 16))))
@@ -709,23 +627,10 @@ class Dialog(QDialog):
                 self.registers[regAddress] = res
                 self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
                     "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], res))
-                # print("result: ", res)
-                # print('addr: ', self.registers[regAddress])
-                # print('1: ', self.registers[reg1])
-                # print('2: ', self.registers[reg2])
             elif self.cb.currentText() in ["addi", "xori", "ori", "andi", "slli", "srli"]:
-                # print("I format")
                 regAddress = toHexString(str(self.addr_input.text()))
                 reg1 = toHexString(str(self.val_input.text()))
-                # print("input text: ", self.val_input.text())
-                # print("value of reg1: ", reg1)
-                # print("regAddress: ", regAddress)
-                # print("operand: ", self.registers[reg1])
                 if self.cb.currentText() == "addi":
-                    # print("register ", int(self.registers[reg1], 16))
-                    # print(" plus immediate: ", int(self.immediate, 2))
-                    # if int(self.immediate, 2) == 1:
-                    # print("YES")
                     res = toHexString(
                         str(hex(int(self.registers[reg1], 16) + int(self.immediate, 2))))
                 elif self.cb.currentText() == "xori":
@@ -749,10 +654,8 @@ class Dialog(QDialog):
                 self.registers[regAddress] = res
                 self._reg.item(int(self.addr_input.text(), 16) + 1).setText(
                     "{:>6}{:>12}".format(self._reg.item(int(self.addr_input.text(), 16) + 1).text()[0:6], res))
-                # print("addi result: ", res)
 
             elif self.cb.currentText() in ["beq", "bne", "blt", "bge"]:
-                # print("C format")
 
                 # flush pipeline
                 self.newInstr = False
@@ -777,7 +680,6 @@ class Dialog(QDialog):
                         else:
                             self.pc -= int(self.immediate, 2)
                 if self.cb.currentText() == "blt":
-                    # print("first: ", firstOP, "< second?: ", secondOP)
                     if firstOP < secondOP:
                         self.fLockedUntil = 0
                         self.dLockedUntil = 0
@@ -786,17 +688,13 @@ class Dialog(QDialog):
                         self.wLockedUntil = 0
                         self.newInstr = False
                         self.newDecode = False
-                        # print("less")
                         if self.sign == 0:
                             self.pc += int(self.immediate, 2)
-                            # print("forward jump to ", self.pc)
                         else:
                             self.pc -= int(self.immediate, 2)
-                            # print("jump back to ", self.pc)
                 if self.cb.currentText() == "bge":
                     if firstOP >= secondOP:
                         if self.sign == 0:
-                            # print("increment PC")
                             self.pc += int(self.immediate, 2)
                         else:
                             self.pc -= int(self.immediate, 2)
@@ -805,7 +703,6 @@ class Dialog(QDialog):
                     "{:>6}{:>12}".format(self._reg.item(2).text()[
                         0:6], toHexString(str(self.pc))))
             elif self.cb.currentText() in ["jalr", "jal"]:
-                # print("J format")
                 if self.sign == "0":  # branch to future instruction
                     self.pc += int(self.immediate, 2)
                 else:  # branch to earlier instruction
@@ -814,7 +711,6 @@ class Dialog(QDialog):
                 self._reg.item(2).setText(
                     "{:>6}{:>12}".format(self._reg.item(2).text()[
                         0:6], toHexString(str(self.pc))))
-                # TODO figure out a return address register and store value there, based on self.function
 
         elif self.clock >= self.eLockedUntil and self.newDecode == True:
 
@@ -840,12 +736,9 @@ class Dialog(QDialog):
             self.eLockedUntil = self.clock + 2 +\
                 (numMemAccesses * self.mem_clock_count) + \
                 (numCacheAccesses * self.l1_clock_count)
-            # print("Setting Execute Delay to ", self.eLockedUntil)
         # else:
-            # print("execute waiting")
         self.clock += 1
         self.cl.setText(str(self.clock))
-        # print(self.clock)
 
 
 def toHexString(s):

@@ -304,7 +304,7 @@ class Dialog(QDialog):
         # first time opening
         if self.file_name == '':
             self.file_name = QFileDialog.getOpenFileName(
-                self, "Open", "D:\Classes\CS 535\Binary files")[0]
+                self, "Open", "./")[0]
             self.loadToMemory(self.file_name)
         self.breakLine = self.breakline_input.text()
 

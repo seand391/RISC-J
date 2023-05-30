@@ -1,6 +1,6 @@
 import sys
-assemblyFileName = "D:\Classes\CS 535\Binary files\\"
-binaryFileName = "D:\Classes\CS 535\Binary files\\"
+assemblyFileName = "./"
+binaryFileName = "./"
 assemblyFileName += sys.argv[1]
 binaryFileName += sys.argv[2]
 assemblyFile = open(assemblyFileName, 'r')

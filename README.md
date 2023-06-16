@@ -25,10 +25,10 @@ Supported addressing modes:
 The instructions will be categorized into the following five formats:
 
 - **R:** arithmetic / logic (add, xor, mu)
-- **I: **immediate, loads (addi, lw)
+- **I:** immediate, loads (addi, lw)
 - **S:** store (sw, sb)
-- **C: **conditional / branch (beq, bge)
-- **J: **jump (jal, jalr)
+- **C:** conditional / branch (beq, bge)
+- **J:** jump (jal, jalr)
 
 _Note: I have decided to leave out RISC-V’s U-type instructions for simplicity_
 
